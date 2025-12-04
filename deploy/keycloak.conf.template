@@ -1,0 +1,25 @@
+# Keycloak Configuration
+# Generated automatically during deployment
+
+# Hostname
+hostname={{ IDP_DOMAIN }}
+
+# HTTP Configuration (behind load balancer)
+http-enabled=true
+http-port=8080
+proxy-headers=xforwarded
+
+# Admin credentials
+admin={{ KEYCLOAK_ADMIN }}
+admin-password={{ KEYCLOAK_ADMIN_PASSWORD }}
+
+# Database Configuration (Cloud SQL)
+db=postgres
+db-username={{ KEYCLOAK_DB_USER }}
+db-password={{ KEYCLOAK_DB_PASSWORD }}
+db-url={{ DB_URL }}
+
+# Health and Metrics
+health-enabled=true
+metrics-enabled=true
+
