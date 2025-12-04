@@ -301,7 +301,8 @@ jobs:
               cd /opt/keycloak && \
               tar xzf /tmp/keycloak-dist.tar.gz && \
               rm /tmp/keycloak-dist.tar.gz && \
-              echo 'Extraction completed'
+              sudo chmod -R 777 /opt/keycloak && \
+              echo 'Extraction completed and permissions set'
             " \
             --quiet
           
