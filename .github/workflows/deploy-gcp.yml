@@ -404,24 +404,16 @@ jobs:
           for i in {1..6}; do
             echo "Checking attempt $i..."
             
+            # Get service state using systemctl show (more reliable)
             STATUS=$(gcloud compute ssh "$VM_NAME" \
               --zone="$ZONE" \
-              --command="
-                if sudo systemctl is-active --quiet keycloak; then
-                  echo 'ACTIVE'
-                  exit 0
-                elif sudo systemctl is-failed --quiet keycloak; then
-                  echo 'FAILED'
-                  exit 0
-                else
-                  echo 'INACTIVE'
-                  exit 0
-                fi
-              " \
-              --quiet 2>&1 | tail -1)
+              --command="sudo systemctl show -p ActiveState --value keycloak" \
+              --quiet 2>/dev/null | tr -d '\r\n')
             
-            if [ \"\$STATUS\" = \"ACTIVE\" ]; then
-              echo \"✓ Keycloak service is active and running\"
+            echo "Service state: $STATUS"
+            
+            if [ "$STATUS" = "active" ]; then
+              echo "✓ Keycloak service is active and running"
               
               # Show service status
               gcloud compute ssh "$VM_NAME" \
@@ -429,14 +421,15 @@ jobs:
                 --command="sudo systemctl status keycloak --no-pager -l" \
                 --quiet
               exit 0
-            elif [ \"\$STATUS\" = \"FAILED\" ]; then
-              echo \"✗ Keycloak service failed to start\"
-              echo \"Service status:\"
+            elif [ "$STATUS" = "failed" ]; then
+              echo "✗ Keycloak service failed to start"
+              echo "Service status:"
               gcloud compute ssh "$VM_NAME" \
                 --zone="$ZONE" \
                 --command="sudo systemctl status keycloak --no-pager -l" \
                 --quiet
-              echo \"\nService logs:\"
+              echo ""
+              echo "Service logs:"
               gcloud compute ssh "$VM_NAME" \
                 --zone="$ZONE" \
                 --command="sudo journalctl -u keycloak -n 50 --no-pager" \
@@ -449,13 +442,14 @@ jobs:
             fi
           done
           
-          echo \"Keycloak did not start within expected time\"
-          echo \"Service status:\"
+          echo "Keycloak did not start within expected time"
+          echo "Service status:"
           gcloud compute ssh "$VM_NAME" \
             --zone="$ZONE" \
             --command="sudo systemctl status keycloak --no-pager -l" \
             --quiet
-          echo \"\nService logs:\"
+          echo ""
+          echo "Service logs:"
           gcloud compute ssh "$VM_NAME" \
             --zone="$ZONE" \
             --command="sudo journalctl -u keycloak -n 100 --no-pager" \
