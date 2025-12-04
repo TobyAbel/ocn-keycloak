@@ -1,0 +1,393 @@
+name: Deploy Keycloak to GCP
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      gcp_vm_name:
+        description: 'GCP VM instance name'
+        required: true
+        type: string
+      gcp_zone:
+        description: 'GCP zone'
+        required: true
+        type: string
+
+env:
+  KEYCLOAK_VERSION: "26.4.7"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Keycloak Distribution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5.0.0
+
+      - name: Cache Keycloak distribution
+        uses: actions/cache@v4
+        id: cache-dist
+        with:
+          path: /tmp/keycloak-dist-cache
+          key: keycloak-official-${{ env.KEYCLOAK_VERSION }}
+          restore-keys: |
+            keycloak-official-
+
+      - name: Download official Keycloak release
+        if: steps.cache-dist.outputs.cache-hit != 'true'
+        run: |
+          KEYCLOAK_VERSION="${{ env.KEYCLOAK_VERSION }}"
+          KEYCLOAK_URL="https://github.com/keycloak/keycloak/releases/download/${KEYCLOAK_VERSION}/keycloak-${KEYCLOAK_VERSION}.tar.gz"
+          
+          echo "Downloading Keycloak ${KEYCLOAK_VERSION} from ${KEYCLOAK_URL}"
+          
+          mkdir -p /tmp/keycloak-dist-cache
+          cd /tmp
+          
+          # Download the release
+          curl -L -o keycloak-${KEYCLOAK_VERSION}.tar.gz "${KEYCLOAK_URL}"
+          
+          # Extract the tarball
+          tar xzf keycloak-${KEYCLOAK_VERSION}.tar.gz
+          
+          # Move contents to cache directory
+          EXTRACTED_DIR=$(find /tmp -maxdepth 1 -type d -name "keycloak-*" | head -n 1)
+          if [ -z "$EXTRACTED_DIR" ]; then
+            echo "Error: Keycloak distribution directory not found after extraction"
+            exit 1
+          fi
+          
+          cp -r "$EXTRACTED_DIR"/* /tmp/keycloak-dist-cache/
+          rm -rf "$EXTRACTED_DIR" keycloak-${KEYCLOAK_VERSION}.tar.gz
+          
+          echo "Keycloak ${KEYCLOAK_VERSION} downloaded and extracted successfully"
+
+      - name: Set distribution directory
+        run: |
+          DIST_DIR="/tmp/keycloak-dist-cache"
+          if [ "${{ steps.cache-dist.outputs.cache-hit }}" == "true" ]; then
+            echo "Using cached distribution from $DIST_DIR"
+          else
+            echo "Using downloaded official Keycloak ${{ env.KEYCLOAK_VERSION }} from $DIST_DIR"
+          fi
+          echo "DIST_DIR=$DIST_DIR" >> $GITHUB_ENV
+
+      - name: Copy custom themes to distribution
+        run: |
+          DIST_DIR="${{ env.DIST_DIR }}"
+          CUSTOM_THEME="themes/src/main/resources/theme/leos-theme"
+          
+          if [ ! -d "$CUSTOM_THEME" ]; then
+            echo "Warning: Custom theme directory not found at $CUSTOM_THEME"
+            exit 0
+          fi
+          
+          # Ensure themes directory exists in distribution
+          mkdir -p "$DIST_DIR/themes"
+          
+          # Copy only the custom theme (base, keycloak, keycloak.v2 are already in official release)
+          echo "Copying custom theme from $CUSTOM_THEME to $DIST_DIR/themes/"
+          cp -r "$CUSTOM_THEME" "$DIST_DIR/themes/"
+          
+          echo "Custom theme copied successfully"
+          ls -la "$DIST_DIR/themes/"
+
+      - name: Create keycloak.conf from secrets and variables
+        run: |
+          mkdir -p "${{ env.DIST_DIR }}/conf"
+          
+          # Determine database connection method
+          if [ -n "${{ vars.DB_PRIVATE_IP }}" ]; then
+            # Use private IP connection
+            DB_URL="jdbc:postgresql://${{ vars.DB_PRIVATE_IP }}:5432/${{ vars.KEYCLOAK_DB_NAME }}"
+          else
+            # Use Cloud SQL Proxy connection (requires Cloud SQL Proxy running on VM)
+            DB_URL="jdbc:postgresql://localhost:5432/${{ vars.KEYCLOAK_DB_NAME }}?cloudSqlInstance=${{ vars.GCP_PROJECT_ID }}:${{ vars.DB_REGION }}:${{ vars.DB_INSTANCE_NAME }}&socketFactory=com.google.cloud.sql.postgres.SocketFactory"
+          fi
+          
+          cat > "${{ env.DIST_DIR }}/conf/keycloak.conf" <<EOF
+          # Keycloak Configuration
+          # Generated automatically during deployment
+          
+          # Hostname
+          hostname=${{ vars.IDP_DOMAIN }}
+          
+          # HTTP Configuration (behind load balancer)
+          http-enabled=true
+          http-port=8080
+          proxy-headers=xforwarded
+          
+          # Admin credentials
+          admin=${{ vars.KEYCLOAK_ADMIN }}
+          admin-password=${{ secrets.KEYCLOAK_ADMIN_PASSWORD }}
+          
+          # Database Configuration (Cloud SQL)
+          db=postgres
+          db-username=${{ vars.KEYCLOAK_DB_USER }}
+          db-password=${{ secrets.KEYCLOAK_DB_PASSWORD }}
+          db-url=${DB_URL}
+          
+          # Health and Metrics
+          health-enabled=true
+          metrics-enabled=true
+          EOF
+          echo "Created keycloak.conf from secrets and variables"
+
+      - name: Build Keycloak with kc.sh
+        run: |
+          chmod +x "${{ env.DIST_DIR }}/bin/kc.sh"
+          cd "${{ env.DIST_DIR }}"
+          ./bin/kc.sh build
+          echo "Keycloak build completed"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+
+      - name: Upload Keycloak distribution artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keycloak-distribution
+          path: ${{ env.DIST_DIR }}
+          retention-days: 7
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy Keycloak to GCP
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5.0.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Download Keycloak distribution artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: keycloak-distribution
+          path: /tmp/
+      
+      - name: Set distribution directory
+        run: |
+          # The artifact extracts contents directly to the download path
+          # So /tmp/bin/kc.sh means the distribution root is /tmp/
+          if [ -f "/tmp/bin/kc.sh" ]; then
+            DIST_DIR="/tmp"
+          elif [ -d "/tmp/keycloak-dist-cache" ] && [ -f "/tmp/keycloak-dist-cache/bin/kc.sh" ]; then
+            DIST_DIR="/tmp/keycloak-dist-cache"
+          else
+            echo "Error: Keycloak distribution not found"
+            echo "Expected /tmp/bin/kc.sh or /tmp/keycloak-dist-cache/bin/kc.sh"
+            exit 1
+          fi
+          
+          echo "DIST_DIR=$DIST_DIR" >> $GITHUB_ENV
+          echo "Using distribution from: $DIST_DIR"
+
+      - name: Get VM instance name and zone
+        id: vm-info
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "vm_name=${{ github.event.inputs.gcp_vm_name }}" >> $GITHUB_OUTPUT
+            echo "zone=${{ github.event.inputs.gcp_zone }}" >> $GITHUB_OUTPUT
+          else
+            echo "vm_name=${{ vars.GCP_VM_NAME }}" >> $GITHUB_OUTPUT
+            echo "zone=${{ vars.GCP_ZONE }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify GCP permissions
+        run: |
+          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
+          ZONE="${{ steps.vm-info.outputs.zone }}"
+          
+          echo "Verifying permissions to access VM: $VM_NAME in zone: $ZONE"
+          
+          if ! gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --quiet > /dev/null 2>&1; then
+            echo "::error::Permission denied: Service account does not have 'compute.instances.get' permission"
+            echo "::error::Please grant one of these roles to your service account:"
+            echo "::error::  - roles/compute.instanceAdmin.v1"
+            echo "::error::  - roles/compute.instanceAdmin"
+            echo "::error::  - Or create a custom role with: compute.instances.get, compute.instances.use"
+            exit 1
+          fi
+          
+          echo "✓ Permissions verified successfully"
+
+      - name: Stop existing Keycloak service
+        run: |
+          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
+          ZONE="${{ steps.vm-info.outputs.zone }}"
+          
+          # Try to stop Keycloak if it's running (ignore errors)
+          gcloud compute ssh "$VM_NAME" \
+            --zone="$ZONE" \
+            --command="sudo systemctl stop keycloak 2>/dev/null || pkill -f 'kc.sh start' 2>/dev/null || true" \
+            --quiet || echo "No existing Keycloak process to stop"
+
+      - name: Create deployment directory on VM
+        run: |
+          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
+          ZONE="${{ steps.vm-info.outputs.zone }}"
+          
+          # Try to create directory and set ownership
+          # If /opt/keycloak already exists, try to use it or recreate it
+          gcloud compute ssh "$VM_NAME" \
+            --zone="$ZONE" \
+            --command="
+              if [ -d /opt/keycloak ]; then
+                echo 'Directory /opt/keycloak already exists'
+                # Try to make it writable by current user
+                sudo chown -R \$(whoami):\$(whoami) /opt/keycloak 2>/dev/null || {
+                  echo 'Warning: Could not change ownership, will try to use existing directory'
+                }
+              else
+                sudo mkdir -p /opt/keycloak && sudo chown -R \$(whoami):\$(whoami) /opt/keycloak
+              fi
+            " \
+            --quiet
+
+      - name: Copy Keycloak distribution to VM
+        run: |
+          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
+          ZONE="${{ steps.vm-info.outputs.zone }}"
+          DIST_DIR="${{ env.DIST_DIR }}"
+          
+          echo "Preparing to copy Keycloak distribution..."
+          echo "Source directory: $DIST_DIR"
+          echo "Target: $VM_NAME:/opt/keycloak/"
+          
+          # Create a temporary directory for the tarball
+          TARBALL_DIR=$(mktemp -d)
+          TARBALL="$TARBALL_DIR/keycloak-dist.tar.gz"
+          
+          # Create tarball with only Keycloak files
+          echo "Creating tarball..."
+          if [ "$DIST_DIR" = "/tmp" ]; then
+            # Only include Keycloak directories and files
+            cd "$DIST_DIR"
+            tar czf "$TARBALL" \
+              bin conf lib providers themes \
+              *.jar *.properties LICENSE.txt README.md 2>/dev/null || \
+            tar czf "$TARBALL" bin conf lib providers themes 2>/dev/null
+          else
+            # Include everything from the distribution directory
+            cd "$DIST_DIR"
+            tar czf "$TARBALL" .
+          fi
+          
+          # Show tarball size
+          TARBALL_SIZE=$(du -h "$TARBALL" | cut -f1)
+          echo "Tarball created: $TARBALL_SIZE"
+          
+          # Copy tarball to VM
+          echo "Copying tarball to VM..."
+          gcloud compute scp \
+            --zone="$ZONE" \
+            "$TARBALL" \
+            "$VM_NAME:/tmp/keycloak-dist.tar.gz" \
+            --verbosity=info
+          
+          # Extract on VM
+          echo "Extracting on VM..."
+          gcloud compute ssh "$VM_NAME" \
+            --zone="$ZONE" \
+            --command="
+              cd /opt/keycloak && \
+              tar xzf /tmp/keycloak-dist.tar.gz && \
+              rm /tmp/keycloak-dist.tar.gz && \
+              echo 'Extraction completed'
+            " \
+            --quiet
+          
+          # Cleanup
+          rm -f "$TARBALL"
+          rmdir "$TARBALL_DIR" 2>/dev/null || true
+          
+          echo "Copy completed successfully"
+
+      - name: Install Java on VM
+        run: |
+          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
+          ZONE="${{ steps.vm-info.outputs.zone }}"
+          
+          gcloud compute ssh "$VM_NAME" \
+            --zone="$ZONE" \
+            --command="
+              if ! command -v java &> /dev/null; then
+                echo 'Java not found, installing OpenJDK 21...'
+                sudo apt-get update -qq
+                sudo apt-get install -y -qq default-jdk
+                echo 'Java installed successfully'
+              else
+                echo 'Java already installed'
+                java -version
+              fi
+            " \
+            --quiet
+
+      - name: Set permissions and start Keycloak
+        run: |
+          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
+          ZONE="${{ steps.vm-info.outputs.zone }}"
+          
+          gcloud compute ssh "$VM_NAME" \
+            --zone="$ZONE" \
+            --command="
+              cd /opt/keycloak && \
+              mkdir -p logs && \
+              chmod +x bin/kc.sh && \
+              # Find and set JAVA_HOME
+              if [ -z \"\$JAVA_HOME\" ]; then
+                JAVA_HOME=\$(readlink -f \$(which java) | sed 's|/bin/java||')
+                export JAVA_HOME
+              fi
+              export PATH=\$JAVA_HOME/bin:\$PATH && \
+              echo \"Using JAVA_HOME: \$JAVA_HOME\" && \
+              java -version && \
+              nohup ./bin/kc.sh start --optimized > /opt/keycloak/logs/startup.log 2>&1 &
+              echo \$! > /opt/keycloak/keycloak.pid
+            " \
+            --quiet
+
+      - name: Verify Keycloak is running
+        run: |
+          sleep 10
+          gcloud compute ssh "${{ steps.vm-info.outputs.vm_name }}" \
+            --zone="${{ steps.vm-info.outputs.zone }}" \
+            --command="
+              if ps -p \$(cat /opt/keycloak/keycloak.pid 2>/dev/null || echo '') > /dev/null 2>&1; then
+                echo 'Keycloak process is running'
+                exit 0
+              else
+                echo 'Keycloak process not found, checking logs:'
+                tail -50 /opt/keycloak/logs/startup.log || echo 'No startup log found'
+                exit 1
+              fi
+            " \
+            --quiet
+
