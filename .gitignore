@@ -102,3 +102,8 @@ quarkus/data/*.db
 # Keycloak state dir as suggested in the docs
 # -Dkc.home.dir=.kc
 .kc
+
+# Raw/unsanitised realm exports (contain users, keys, secrets). Only the
+# sanitised realm/ocn-realm.json is committed — see docs/realm-management.md
+*-realm-export*.json
+ocn-realm-export.raw.json
