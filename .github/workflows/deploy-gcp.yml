@@ -219,27 +219,37 @@ jobs:
           
           echo "✓ Permissions verified successfully"
 
-      - name: Stop existing Keycloak service
+      - name: Set up SSH to VM
         run: |
           VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
           ZONE="${{ steps.vm-info.outputs.zone }}"
-          
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          VM_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          echo "Resolved VM IP: $VM_IP"
+          {
+            echo "Host kc"
+            echo "  HostName $VM_IP"
+            echo "  User gha-deploy"
+            echo "  IdentityFile ~/.ssh/deploy_key"
+            echo "  StrictHostKeyChecking accept-new"
+            echo "  UserKnownHostsFile ~/.ssh/known_hosts"
+            echo "  ConnectTimeout 20"
+          } > ~/.ssh/config
+          ssh kc 'echo SSH_READY on $(hostname)'
+
+      - name: Stop existing Keycloak service
+        run: |
           # Stop Keycloak service if it exists (ignore errors)
-          gcloud compute ssh "$VM_NAME" \
-            --zone="$ZONE" \
-            --command="sudo systemctl stop keycloak 2>/dev/null || sudo pkill -f 'kc.sh start' 2>/dev/null || true" \
-            --quiet || echo "No existing Keycloak process to stop"
+          ssh kc "sudo systemctl stop keycloak 2>/dev/null || sudo pkill -f 'kc.sh start' 2>/dev/null || true" \
+            || echo "No existing Keycloak process to stop"
 
       - name: Create deployment directory on VM
         run: |
-          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
-          ZONE="${{ steps.vm-info.outputs.zone }}"
-          
           # Try to create directory and set ownership
           # If /opt/keycloak already exists, try to use it or recreate it
-          gcloud compute ssh "$VM_NAME" \
-            --zone="$ZONE" \
-            --command="
+          ssh kc "
               if [ -d /opt/keycloak ]; then
                 echo 'Directory /opt/keycloak already exists'
                 # Try to make it writable by current user
@@ -249,18 +259,15 @@ jobs:
               else
                 sudo mkdir -p /opt/keycloak && sudo chown -R \$(whoami):\$(whoami) /opt/keycloak
               fi
-            " \
-            --quiet
+            "
 
       - name: Copy Keycloak distribution to VM
         run: |
-          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
-          ZONE="${{ steps.vm-info.outputs.zone }}"
           DIST_DIR="${{ env.DIST_DIR }}"
-          
+
           echo "Preparing to copy Keycloak distribution..."
           echo "Source directory: $DIST_DIR"
-          echo "Target: $VM_NAME:/opt/keycloak/"
+          echo "Target: kc:/opt/keycloak/"
           
           # Create a temporary directory for the tarball
           TARBALL_DIR=$(mktemp -d)
@@ -287,24 +294,17 @@ jobs:
           
           # Copy tarball to VM
           echo "Copying tarball to VM..."
-          gcloud compute scp \
-            --zone="$ZONE" \
-            "$TARBALL" \
-            "$VM_NAME:/tmp/keycloak-dist.tar.gz" \
-            --verbosity=info
-          
+          scp "$TARBALL" kc:/tmp/keycloak-dist.tar.gz
+
           # Extract on VM
           echo "Extracting on VM..."
-          gcloud compute ssh "$VM_NAME" \
-            --zone="$ZONE" \
-            --command="
+          ssh kc "
               cd /opt/keycloak && \
               tar xzf /tmp/keycloak-dist.tar.gz && \
               rm /tmp/keycloak-dist.tar.gz && \
               sudo chmod -R 777 /opt/keycloak && \
               echo 'Extraction completed and permissions set'
-            " \
-            --quiet
+            "
           
           # Cleanup
           rm -f "$TARBALL"
@@ -314,12 +314,7 @@ jobs:
 
       - name: Install Java on VM
         run: |
-          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
-          ZONE="${{ steps.vm-info.outputs.zone }}"
-          
-          gcloud compute ssh "$VM_NAME" \
-            --zone="$ZONE" \
-            --command="
+          ssh kc "
               if ! command -v java &> /dev/null; then
                 echo 'Java not found, installing OpenJDK 21...'
                 sudo apt-get update -qq
@@ -329,32 +324,19 @@ jobs:
                 echo 'Java already installed'
                 java -version
               fi
-            " \
-            --quiet
+            "
 
       - name: Copy systemd service template to VM
         run: |
-          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
-          ZONE="${{ steps.vm-info.outputs.zone }}"
-          
-          gcloud compute scp \
-            --zone="$ZONE" \
-            deploy/keycloak.service.template \
-            "$VM_NAME:/tmp/keycloak.service.template" \
-            --quiet
+          scp deploy/keycloak.service.template kc:/tmp/keycloak.service.template
 
       - name: Create systemd service for Keycloak
         run: |
-          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
-          ZONE="${{ steps.vm-info.outputs.zone }}"
-          
-          gcloud compute ssh "$VM_NAME" \
-            --zone="$ZONE" \
-            --command="
+          ssh kc "
               cd /opt/keycloak && \
               mkdir -p logs && \
               chmod +x bin/kc.sh && \
-              
+
               # Determine JAVA_HOME
               JAVA_HOME=\$(readlink -f \$(which java) | sed 's|/bin/java||')
               if [ -z \"\$JAVA_HOME\" ] || [ ! -d \"\$JAVA_HOME\" ]; then
@@ -362,98 +344,68 @@ jobs:
                 java -version
                 exit 1
               fi
-              
+
               # Substitute JAVA_HOME in template and install service file
               sed \"s|{{ JAVA_HOME }}|\$JAVA_HOME|g\" /tmp/keycloak.service.template | \
                 sudo tee /etc/systemd/system/keycloak.service > /dev/null
-              
+
               rm /tmp/keycloak.service.template
               echo \"Systemd service file created successfully\"
-            " \
-            --quiet
+            "
 
       - name: Enable and start Keycloak service
         run: |
-          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
-          ZONE="${{ steps.vm-info.outputs.zone }}"
-          
-          gcloud compute ssh "$VM_NAME" \
-            --zone="$ZONE" \
-            --command="
+          ssh kc "
               # Reload systemd to pick up new service file
               sudo systemctl daemon-reload
-              
+
               # Enable service to start on boot
               sudo systemctl enable keycloak
-              
+
               # Start the service
               sudo systemctl start keycloak
-              
+
               echo \"Keycloak service started\"
-            " \
-            --quiet
+            "
 
       - name: Verify Keycloak is running
         run: |
-          VM_NAME="${{ steps.vm-info.outputs.vm_name }}"
-          ZONE="${{ steps.vm-info.outputs.zone }}"
-          
           echo "Waiting for Keycloak to start..."
           sleep 15
-          
+
           # Check service status multiple times
           for i in {1..6}; do
             echo "Checking attempt $i..."
-            
+
             # Get service state using systemctl show (more reliable)
-            STATUS=$(gcloud compute ssh "$VM_NAME" \
-              --zone="$ZONE" \
-              --command="sudo systemctl show -p ActiveState --value keycloak" \
-              --quiet 2>/dev/null | tr -d '\r\n')
-            
+            STATUS=$(ssh kc "sudo systemctl show -p ActiveState --value keycloak" 2>/dev/null | tr -d '\r\n')
+
             echo "Service state: $STATUS"
-            
+
             if [ "$STATUS" = "active" ]; then
               echo "✓ Keycloak service is active and running"
-              
-              # Show service status
-              gcloud compute ssh "$VM_NAME" \
-                --zone="$ZONE" \
-                --command="sudo systemctl status keycloak --no-pager -l" \
-                --quiet
+              ssh kc "sudo systemctl status keycloak --no-pager -l"
               exit 0
             elif [ "$STATUS" = "failed" ]; then
               echo "✗ Keycloak service failed to start"
               echo "Service status:"
-              gcloud compute ssh "$VM_NAME" \
-                --zone="$ZONE" \
-                --command="sudo systemctl status keycloak --no-pager -l" \
-                --quiet
+              ssh kc "sudo systemctl status keycloak --no-pager -l"
               echo ""
               echo "Service logs:"
-              gcloud compute ssh "$VM_NAME" \
-                --zone="$ZONE" \
-                --command="sudo journalctl -u keycloak -n 50 --no-pager" \
-                --quiet
+              ssh kc "sudo journalctl -u keycloak -n 50 --no-pager"
               exit 1
             fi
-            
+
             if [ $i -lt 6 ]; then
               sleep 10
             fi
           done
-          
+
           echo "Keycloak did not start within expected time"
           echo "Service status:"
-          gcloud compute ssh "$VM_NAME" \
-            --zone="$ZONE" \
-            --command="sudo systemctl status keycloak --no-pager -l" \
-            --quiet
+          ssh kc "sudo systemctl status keycloak --no-pager -l"
           echo ""
           echo "Service logs:"
-          gcloud compute ssh "$VM_NAME" \
-            --zone="$ZONE" \
-            --command="sudo journalctl -u keycloak -n 100 --no-pager" \
-            --quiet
+          ssh kc "sudo journalctl -u keycloak -n 100 --no-pager"
           exit 1
 
