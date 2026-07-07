@@ -60,7 +60,7 @@ jobs:
           tar xzf keycloak-${KEYCLOAK_VERSION}.tar.gz
           
           # Move contents to cache directory
-          EXTRACTED_DIR=$(find /tmp -maxdepth 1 -type d -name "keycloak-*" | head -n 1)
+          EXTRACTED_DIR=$(find /tmp -maxdepth 1 -type d -name "keycloak-*" ! -name "keycloak-dist-cache" | head -n 1)
           if [ -z "$EXTRACTED_DIR" ]; then
             echo "Error: Keycloak distribution directory not found after extraction"
             exit 1
