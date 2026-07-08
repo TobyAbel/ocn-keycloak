@@ -84,21 +84,24 @@ jobs:
       - name: Copy custom themes to distribution
         run: |
           DIST_DIR="${{ env.DIST_DIR }}"
-          CUSTOM_THEME="themes/src/main/resources/theme/leos-theme"
-          
-          if [ ! -d "$CUSTOM_THEME" ]; then
-            echo "Warning: Custom theme directory not found at $CUSTOM_THEME"
+          THEMES_SRC="themes/src/main/resources/theme"
+
+          if [ ! -d "$THEMES_SRC" ]; then
+            echo "Warning: themes directory not found at $THEMES_SRC"
             exit 0
           fi
-          
+
           # Ensure themes directory exists in distribution
           mkdir -p "$DIST_DIR/themes"
-          
-          # Copy only the custom theme (base, keycloak, keycloak.v2 are already in official release)
-          echo "Copying custom theme from $CUSTOM_THEME to $DIST_DIR/themes/"
-          cp -r "$CUSTOM_THEME" "$DIST_DIR/themes/"
-          
-          echo "Custom theme copied successfully"
+
+          # Copy every custom theme (base, keycloak, keycloak.v2 ship with Keycloak).
+          for THEME in "$THEMES_SRC"/*/; do
+            [ -d "$THEME" ] || continue
+            echo "Copying custom theme $(basename "$THEME") to $DIST_DIR/themes/"
+            cp -r "$THEME" "$DIST_DIR/themes/"
+          done
+
+          echo "Custom themes copied successfully"
           ls -la "$DIST_DIR/themes/"
 
       - name: Create keycloak.conf from template

@@ -1,0 +1,77 @@
+/*
+ * CivicOS / OCN login branding — layered on top of keycloak.v2 (PatternFly 5).
+ * Mirrors the portal sign-in: indigo-haze ground, ink-bordered white card,
+ * indigo GOV.UK-style button, DM Sans, GOV.UK-yellow focus, OCN ring mark.
+ */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap');
+
+:root {
+  --cvc-ink: #15181c;
+  --cvc-indigo: #382cdd;
+  --cvc-indigo-dark: #2a1fb0;
+  --cvc-haze: #eef0fb;
+  /* Retarget PatternFly's accent + fonts to the brand */
+  --pf-v5-global--primary-color--100: var(--cvc-indigo);
+  --pf-v5-global--primary-color--200: var(--cvc-indigo-dark);
+  --pf-v5-global--link--Color: var(--cvc-indigo);
+  --pf-v5-global--link--Color--hover: var(--cvc-indigo-dark);
+  --pf-v5-global--FontFamily--text: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --pf-v5-global--FontFamily--heading: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* Page ground + top brand rule */
+html, body, body.login-pf { font-family: var(--pf-v5-global--FontFamily--text) !important; }
+.login-pf-page, body.login-pf { background: var(--cvc-haze) !important; }
+.login-pf-page { border-top: 3px solid var(--cvc-indigo); }
+
+/* Logo: replace the realm-name text with the OCN ring mark */
+#kc-header-wrapper {
+  height: 46px;
+  margin-bottom: 22px;
+  color: transparent !important;
+  font-size: 0 !important;
+  text-shadow: none !important;
+  background: url('../img/ocn-mark.svg') no-repeat center / contain;
+}
+
+/* The login card: white, strong ink border, square, subtle depth */
+.pf-v5-c-login__main,
+.card-pf {
+  background: #ffffff !important;
+  border: 1px solid var(--cvc-ink) !important;
+  border-radius: 0 !important;
+  box-shadow: 0 1px 2px rgba(21, 24, 28, 0.05), 0 10px 28px rgba(21, 24, 28, 0.08) !important;
+}
+#kc-page-title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--cvc-ink);
+}
+
+/* Primary button → indigo with the GOV.UK-style solid bottom edge */
+.pf-v5-c-button.pf-m-primary,
+input[type='submit'].pf-m-primary,
+#kc-login {
+  background: var(--cvc-indigo) !important;
+  border-color: var(--cvc-indigo) !important;
+  color: #fff !important;
+  border-radius: 3px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 0 #1a1170 !important;
+}
+.pf-v5-c-button.pf-m-primary:hover,
+#kc-login:hover { background: var(--cvc-indigo-dark) !important; }
+
+/* Inputs + accessible yellow focus */
+.pf-v5-c-form-control { border-radius: 4px !important; }
+.pf-v5-c-form-control:focus,
+.pf-v5-c-form-control:focus-within,
+.pf-v5-c-button:focus-visible,
+a:focus-visible {
+  outline: 3px solid #ffdd00 !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+}
+
+a { color: var(--cvc-indigo); }
+a:hover { color: var(--cvc-indigo-dark); }

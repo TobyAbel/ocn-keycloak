@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="46" height="46" role="img" aria-label="Open Council Network">
+  <defs>
+    <mask id="ocn-rings">
+      <rect width="300" height="300" fill="black"/>
+      <circle cx="150" cy="150" r="130" fill="white"/>
+      <circle cx="150" cy="150" r="112" fill="black"/>
+      <circle cx="150" cy="150" r="92" fill="white"/>
+      <circle cx="150" cy="150" r="71" fill="black"/>
+      <circle cx="150" cy="150" r="51" fill="white"/>
+      <circle cx="150" cy="150" r="30" fill="black"/>
+      <rect x="210" y="130" width="45" height="40" fill="black"/>
+      <rect x="130" y="170" width="40" height="45" fill="black"/>
+    </mask>
+  </defs>
+  <rect width="300" height="300" fill="#15181c" mask="url(#ocn-rings)"/>
+</svg>
