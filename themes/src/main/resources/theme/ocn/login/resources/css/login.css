@@ -19,9 +19,12 @@
   --pf-v5-global--FontFamily--heading: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
-/* Page ground + top brand rule */
+/* Page ground (flat indigo-haze, no PF gradient) + top brand rule */
 html, body, body.login-pf { font-family: var(--pf-v5-global--FontFamily--text) !important; }
-.login-pf-page, body.login-pf { background: var(--cvc-haze) !important; }
+#keycloak-bg, body.login-pf, .login-pf-page {
+  background: var(--cvc-haze) !important;
+  background-image: none !important;
+}
 .login-pf-page { border-top: 3px solid var(--cvc-indigo); }
 
 /* Logo: replace the realm-name text with the OCN ring mark */
@@ -34,13 +37,21 @@ html, body, body.login-pf { font-family: var(--pf-v5-global--FontFamily--text) !
   background: url('../img/ocn-mark.svg') no-repeat center / contain;
 }
 
-/* The login card: white, strong ink border, square, subtle depth */
-.pf-v5-c-login__main,
-.card-pf {
+/* One card only: white, strong ink border, square, subtle depth */
+.pf-v5-c-login__main {
   background: #ffffff !important;
   border: 1px solid var(--cvc-ink) !important;
   border-radius: 0 !important;
   box-shadow: 0 1px 2px rgba(21, 24, 28, 0.05), 0 10px 28px rgba(21, 24, 28, 0.08) !important;
+}
+/* Logo header + inner form area sit flat inside that card — no nested boxes */
+.pf-v5-c-login__header,
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 #kc-page-title {
   font-weight: 700;
