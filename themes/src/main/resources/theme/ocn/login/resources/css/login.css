@@ -1,7 +1,8 @@
 /*
  * CivicOS / OCN login branding — layered on top of keycloak.v2 (PatternFly 5).
- * Mirrors the portal sign-in: indigo-haze ground, ink-bordered white card,
- * indigo GOV.UK-style button, DM Sans, GOV.UK-yellow focus, OCN ring mark.
+ * Parent layout/CSS comes from styles.css (vendored keycloak.v2). This file only
+ * retargets brand: indigo-haze ground, ink-bordered card, indigo button, DM Sans,
+ * GOV.UK-yellow focus, OCN ring mark.
  */
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap');
 
@@ -10,78 +11,143 @@
   --cvc-indigo: #382cdd;
   --cvc-indigo-dark: #2a1fb0;
   --cvc-haze: #eef0fb;
-  /* Retarget PatternFly's accent + fonts to the brand */
+  --cvc-border: #c8cdd8;
+
+  /* Retarget PatternFly accent + fonts */
   --pf-v5-global--primary-color--100: var(--cvc-indigo);
   --pf-v5-global--primary-color--200: var(--cvc-indigo-dark);
   --pf-v5-global--link--Color: var(--cvc-indigo);
   --pf-v5-global--link--Color--hover: var(--cvc-indigo-dark);
   --pf-v5-global--FontFamily--text: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --pf-v5-global--FontFamily--heading: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Card accent bar (keycloak.v2 uses --keycloak-card-top-color) */
+  --keycloak-card-top-color: var(--cvc-indigo);
 }
 
-/*
- * NOTE: this theme's inherited `styles.css` is a leftover LEOS stylesheet
- * (red brand, Inter, gradient ground, card-boxed header/form). Most of it is
- * inert because LEOS targets `.kc-input`/`.kc-button` while keycloak.v2 renders
- * `.pf-v5-c-*` markup — but a few id-based LEOS rules DO match and leak through
- * (`body` gradient, `#kc-header-wrapper` + `#kc-form` cards). login.css loads
- * last, so the overrides below neutralise them via the cascade.
- */
-
-/* Page ground — flatten the LEOS gradient to a single indigo-haze fill */
-html, body, body.login-pf { font-family: var(--pf-v5-global--FontFamily--text) !important; }
-html, body#keycloak-bg, body, body.login-pf, .login-pf-page {
+/* Page ground — flat indigo-haze (no keycloak.v2 background image) */
+html,
+body,
+body#keycloak-bg,
+body.login-pf,
+.login-pf body,
+.login-pf-page {
+  font-family: var(--pf-v5-global--FontFamily--text) !important;
   background: var(--cvc-haze) !important;
   background-image: none !important;
+  color: var(--cvc-ink);
 }
-.login-pf-page { border-top: 3px solid var(--cvc-indigo); }
 
-/* Logo: replace the realm-name text with the OCN ring mark; strip the LEOS card */
-#kc-header-wrapper {
+/* Centered single-column login (keycloak.v2 already sets 34rem; keep it explicit) */
+.pf-v5-c-login {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  padding: 3rem 1rem 2rem;
+  box-sizing: border-box;
+}
+.pf-v5-c-login__container {
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 34rem);
+  justify-content: center;
+}
+
+/* Logo: realm name text → OCN ring mark, centered above the card */
+#kc-header {
+  text-align: center;
+  margin: 0 0 1.25rem;
+}
+#kc-header-wrapper,
+#kc-header-wrapper.pf-v5-c-brand {
+  display: block;
+  width: 46px;
   height: 46px;
-  margin-bottom: 22px;
-  padding: 0 !important;
+  margin: 0 auto;
+  padding: 0;
   color: transparent !important;
   font-size: 0 !important;
+  line-height: 0 !important;
   text-shadow: none !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap;
+  overflow: hidden;
   background: url('../img/ocn-mark.svg') no-repeat center / contain !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
 }
 
-/* Kill the LEOS inner form card so the form sits flat inside the one card */
-#kc-form {
-  background: transparent !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-/* One card only: white, strong ink border, square, subtle depth */
+/* One card: white, strong ink border, square corners, subtle depth */
 .pf-v5-c-login__main {
   background: #ffffff !important;
   border: 1px solid var(--cvc-ink) !important;
   border-radius: 0 !important;
-  box-shadow: 0 1px 2px rgba(21, 24, 28, 0.05), 0 10px 28px rgba(21, 24, 28, 0.08) !important;
+  box-shadow:
+    0 1px 2px rgba(21, 24, 28, 0.05),
+    0 10px 28px rgba(21, 24, 28, 0.08) !important;
 }
-/* Logo header + inner form area sit flat inside that card — no nested boxes */
+.pf-v5-c-login__main-header {
+  border-top: 4px solid var(--cvc-indigo) !important;
+}
 .pf-v5-c-login__header,
 .pf-v5-c-login__main-header,
 .pf-v5-c-login__main-body,
 .pf-v5-c-login__main-footer {
   background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
 }
+
 #kc-page-title {
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--cvc-ink);
 }
 
-/* Primary button → indigo with the GOV.UK-style solid bottom edge */
+/* Form fields — full-width PatternFly controls with a clear border */
+.pf-v5-c-form__group {
+  margin-bottom: 1rem;
+}
+.pf-v5-c-form__label {
+  font-weight: 600;
+  color: var(--cvc-ink);
+  margin-bottom: 0.35rem;
+}
+.pf-v5-c-form-control,
+input.pf-v5-c-form-control {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--cvc-border) !important;
+  border-radius: 4px !important;
+  background: #fff !important;
+  color: var(--cvc-ink) !important;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+}
+.pf-v5-c-input-group {
+  width: 100%;
+}
+.pf-v5-c-input-group .pf-v5-c-form-control {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control {
+  border: 1px solid var(--cvc-border) !important;
+  border-left: 0 !important;
+  border-radius: 0 4px 4px 0 !important;
+  background: #fff !important;
+  color: var(--cvc-ink) !important;
+}
+
+.pf-v5-c-form-control:focus,
+.pf-v5-c-form-control:focus-within,
+.pf-v5-c-button:focus-visible,
+a:focus-visible {
+  outline: 3px solid #ffdd00 !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Primary button → indigo with GOV.UK-style solid bottom edge */
 .pf-v5-c-button.pf-m-primary,
 input[type='submit'].pf-m-primary,
 #kc-login {
@@ -93,18 +159,23 @@ input[type='submit'].pf-m-primary,
   box-shadow: 0 2px 0 #1a1170 !important;
 }
 .pf-v5-c-button.pf-m-primary:hover,
-#kc-login:hover { background: var(--cvc-indigo-dark) !important; }
-
-/* Inputs + accessible yellow focus */
-.pf-v5-c-form-control { border-radius: 4px !important; }
-.pf-v5-c-form-control:focus,
-.pf-v5-c-form-control:focus-within,
-.pf-v5-c-button:focus-visible,
-a:focus-visible {
-  outline: 3px solid #ffdd00 !important;
-  outline-offset: 0 !important;
-  box-shadow: none !important;
+#kc-login:hover {
+  background: var(--cvc-indigo-dark) !important;
 }
 
-a { color: var(--cvc-indigo); }
-a:hover { color: var(--cvc-indigo-dark); }
+a {
+  color: var(--cvc-indigo);
+}
+a:hover {
+  color: var(--cvc-indigo-dark);
+}
+
+/* Remember-me / forgot-password row */
+#kc-form-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}

@@ -1917,7 +1917,7 @@
       "addReadTokenRoleOnCreate": false,
       "authenticateByDefault": false,
       "linkOnly": false,
-      "hideOnLogin": false,
+      "hideOnLogin": true,
       "config": {
         "postBindingLogout": "true",
         "postBindingResponse": "true",
