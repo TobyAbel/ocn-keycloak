@@ -9,7 +9,10 @@ Group=root
 WorkingDirectory=/opt/keycloak
 Environment="JAVA_HOME={{ JAVA_HOME }}"
 Environment="PATH={{ JAVA_HOME }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/opt/keycloak/bin/kc.sh start --optimized
+# Theme static URLs don't rotate on theme edits (hash = server version), and the
+# default 30-day max-age + compressed-resource cache left browsers on stale CSS.
+# Low-traffic IdP: prefer freshness over caching.
+ExecStart=/opt/keycloak/bin/kc.sh start --optimized --spi-theme-static-max-age=-1 --spi-theme-cache-themes=false --spi-theme-cache-templates=false
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
