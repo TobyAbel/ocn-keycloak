@@ -19,22 +19,44 @@
   --pf-v5-global--FontFamily--heading: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
-/* Page ground (flat indigo-haze, no PF gradient) + top brand rule */
+/*
+ * NOTE: this theme's inherited `styles.css` is a leftover LEOS stylesheet
+ * (red brand, Inter, gradient ground, card-boxed header/form). Most of it is
+ * inert because LEOS targets `.kc-input`/`.kc-button` while keycloak.v2 renders
+ * `.pf-v5-c-*` markup — but a few id-based LEOS rules DO match and leak through
+ * (`body` gradient, `#kc-header-wrapper` + `#kc-form` cards). login.css loads
+ * last, so the overrides below neutralise them via the cascade.
+ */
+
+/* Page ground — flatten the LEOS gradient to a single indigo-haze fill */
 html, body, body.login-pf { font-family: var(--pf-v5-global--FontFamily--text) !important; }
-#keycloak-bg, body.login-pf, .login-pf-page {
+html, body#keycloak-bg, body, body.login-pf, .login-pf-page {
   background: var(--cvc-haze) !important;
   background-image: none !important;
 }
 .login-pf-page { border-top: 3px solid var(--cvc-indigo); }
 
-/* Logo: replace the realm-name text with the OCN ring mark */
+/* Logo: replace the realm-name text with the OCN ring mark; strip the LEOS card */
 #kc-header-wrapper {
   height: 46px;
   margin-bottom: 22px;
+  padding: 0 !important;
   color: transparent !important;
   font-size: 0 !important;
   text-shadow: none !important;
-  background: url('../img/ocn-mark.svg') no-repeat center / contain;
+  background: url('../img/ocn-mark.svg') no-repeat center / contain !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Kill the LEOS inner form card so the form sits flat inside the one card */
+#kc-form {
+  background: transparent !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 /* One card only: white, strong ink border, square, subtle depth */
