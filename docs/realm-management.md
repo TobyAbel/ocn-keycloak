@@ -87,6 +87,65 @@ Idempotent — creates `civicos-portal` if absent, updates it in place otherwise
 prints the generated client secret; put that in the portal's `AUTH_KEYCLOAK_SECRET`.
 After applying, re-export + re-sanitise so the snapshot reflects reality.
 
+## Council lifecycle (B6)
+
+B6 introduces council create/edit from the portal. Two things must be true in the
+live `ocn` realm (applied with kcadm, **not** via deploy):
+
+- **`ocn-superadmin`** — the *sole* non-council-scoped realm role. It gates the
+  portal's council-lifecycle admin (add/edit councils) via
+  `isPlatformAdmin(roles) ⇔ roles.includes("ocn-superadmin")`. It is held only by
+  the **platform owner** (`toby@gearhart.co.uk`). This is distinct from every
+  per-council permission below; do **not** reuse `ocn-admin` for it.
+- **`service-account-civicos-admin` holds `realm-management:manage-realm`** — the
+  least-privilege grant that lets the `civicos-admin` confidential service account
+  **create realm roles** at runtime. Without it, the portal's `createRealmRole`
+  calls return 403. (Previously the service account had only user-management scopes:
+  `view-users`, `query-users`, `manage-users`, `view-realm`.) `realm-admin` would
+  also work but is broader — prefer `manage-realm`.
+
+Apply both with the bootstrap script (idempotent):
+
+```bash
+# on the VM, or anywhere kcadm can reach the server:
+KC_ADMIN=admin KC_ADMIN_PASSWORD=... ./scripts/add-ocn-superadmin.sh
+```
+
+It (1) creates `ocn-superadmin`, (2) assigns it to the owner, and (3) grants the
+service account `manage-realm`, then runs `get-roles` verification checks. After
+running it, **re-export + re-sanitise** so the snapshot reflects reality (see
+[Re-exporting](#re-exporting-the-realm-read-only-no-downtime) /
+[Sanitising](#sanitising-a-fresh-export-before-committing)). The re-export adds
+`ocn-superadmin` to `roles.realm` in `ocn-realm.json`; `jq '.users | length'` must
+still be `0`. The service-account `manage-realm` grant will **not** appear in the
+snapshot — service accounts are users and are stripped on export — so it is
+recorded here in prose instead. (The `civicos-admin` client itself is likewise not
+in the snapshot; it was created live during roadmap B4.)
+
+### Per-council roles (created live at runtime, not in the snapshot)
+
+Once the service account can create realm roles, the portal provisions **six**
+roles per council when a council is created, keyed on the council slug `<slug>`:
+
+| Role | Permission |
+|---|---|
+| `council-<slug>` | Draft — open CMS / edit constitution |
+| `publish-versions-<slug>` | Publish versions |
+| `user-admin-<slug>` | User Admin — manage that council's users |
+| `cm-ds-<slug>` | Committee Management: Democratic Services |
+| `cm-author-<slug>` | Committee Management: report author |
+| `cm-member-<slug>` | Committee Management: elected member |
+
+`@civicos/auth` exposes `councilRoleNames(slug)` returning exactly these. Slugs are
+validated against `^[a-z0-9]+(-[a-z0-9]+)*$` (max 100 chars).
+
+These runtime roles are **intentionally absent from `ocn-realm.json`**. They are
+created live via the Admin API and are **safe across deploys**: the pipeline runs
+`kc.sh start` with no `--import-realm`, so nothing clobbers them (and a manual
+`--import-realm` on the existing realm is a no-op, not an overwrite). Do not try to
+enumerate every per-council role in the snapshot — the snapshot captures realm-level
+config (`ocn-superadmin` and the seed council roles), not the growing runtime set.
+
 ## Cleanup / hardening backlog (observed in the current realm)
 
 - `bruteForceProtected: false` — no brute-force lockout on the realm.
