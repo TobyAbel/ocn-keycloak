@@ -92,7 +92,9 @@ After applying, re-export + re-sanitise so the snapshot reflects reality.
 - `bruteForceProtected: false` — no brute-force lockout on the realm.
 - `ocn-constitution-admin` has a sprawling redirect-URI list (mixes cms / cms2 /
   constitution hosts + several localhost ports + loose bare-origin entries) — tighten.
-- Stale `cms2.opencouncil.network` redirect URIs coexist with `cms.opencouncil.network`.
+- Stale `cms2.opencouncil.network` / `cms.opencouncil.network` redirect and post-logout
+  URIs linger on `cms`; the CMS lives at `cms.ocn.technology` (the old host is a dead
+  load balancer). `cms-admin` still has the old host as its root/base URL.
 - Group name typo: `Tower Hamets` (alongside `Tower Hamlets Admins`/`Editors`).
 - Realm login theme is `keycloak.v2`; the repo's custom `leos-theme` is not the
   active realm login theme — reconcile.

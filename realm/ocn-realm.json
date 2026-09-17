@@ -773,23 +773,22 @@
       "clientId": "cms",
       "name": "Constitution Management System",
       "description": "",
-      "rootUrl": "https://cms.opencouncil.network/",
-      "adminUrl": "https://cms.opencouncil.network/",
-      "baseUrl": "https://cms.opencouncil.network/",
+      "rootUrl": "https://cms.ocn.technology/",
+      "adminUrl": "https://cms.ocn.technology/",
+      "baseUrl": "https://cms.ocn.technology/",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "",
-        "https://cms.opencouncil.network/*",
+        "https://cms.ocn.technology/*",
         "http://localhost:3002/*",
         "https://cms2.opencouncil.network/*"
       ],
       "webOrigins": [
         "http://localhost:3002",
-        "https://cms.opencouncil.network",
-        "https://cms2.opencouncil.network"
+        "https://cms2.opencouncil.network",
+        "https://cms.ocn.technology"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -806,7 +805,7 @@
         "oidc.ciba.grant.enabled": "false",
         "backchannel.logout.session.required": "true",
         "standard.token.exchange.enabled": "false",
-        "post.logout.redirect.uris": "https://cms2.opencouncil.network##https://cms.opencouncil.network##http://localhost:3002",
+        "post.logout.redirect.uris": "https://cms2.opencouncil.network##https://cms.opencouncil.network##http://localhost:3002##https://cms.ocn.technology",
         "oauth2.device.authorization.grant.enabled": "false",
         "pkce.code.challenge.method": "S256",
         "backchannel.logout.revoke.offline.tokens": "false",
