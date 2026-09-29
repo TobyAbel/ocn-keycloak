@@ -491,9 +491,6 @@
         "publish-versions-tower-hamlets"
       ],
       "clientRoles": {
-        "realm-management": [
-          "realm-admin"
-        ],
         "ocn-constitution-admin": [
           "realm-admin"
         ]
